@@ -1,15 +1,19 @@
 za\co\tut\stokvelchain\entity\PayoutEntity.class
 za\co\tut\stokvelchain\entity\UserEntity$UserEntityBuilder.class
 za\co\tut\stokvelchain\entity\LoanEntity$LoanEntityBuilder.class
+za\co\tut\stokvelchain\dto\request\RegisterRequest$RegisterRequestBuilder.class
 za\co\tut\stokvelchain\entity\BehavioralScoreEntity$BehavioralScoreEntityBuilder.class
 za\co\tut\stokvelchain\ServletInitializer.class
 za\co\tut\stokvelchain\entity\UserEntity.class
+za\co\tut\stokvelchain\mapper\MemberMapper.class
+za\co\tut\stokvelchain\mapper\UserMapper.class
 za\co\tut\stokvelchain\enums\EventType.class
 za\co\tut\stokvelchain\entity\StokvelGroupEntity$StokvelGroupEntityBuilder.class
 za\co\tut\stokvelchain\entity\StokvelGroupEntity.class
 za\co\tut\stokvelchain\enums\ContributionFrequency.class
 za\co\tut\stokvelchain\enums\Role.class
 za\co\tut\stokvelchain\entity\ContributionEntity.class
+za\co\tut\stokvelchain\repository\StokvelGroupRepository.class
 za\co\tut\stokvelchain\entity\MemberEntity.class
 za\co\tut\stokvelchain\entity\TransactionEntity.class
 za\co\tut\stokvelchain\enums\LoanStatus.class
@@ -22,4 +26,7 @@ za\co\tut\stokvelchain\enums\PayoutCycle.class
 za\co\tut\stokvelchain\StokvelchainApplication.class
 za\co\tut\stokvelchain\entity\MemberEntity$MemberEntityBuilder.class
 za\co\tut\stokvelchain\entity\TransactionEntity$TransactionEntityBuilder.class
+za\co\tut\stokvelchain\repository\MemberRepository.class
+za\co\tut\stokvelchain\repository\UserRepo.class
+za\co\tut\stokvelchain\dto\request\RegisterRequest.class
 za\co\tut\stokvelchain\entity\LoanEntity.class
