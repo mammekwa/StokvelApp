@@ -11,9 +11,14 @@ import za.co.tut.stokvelchain.entity.MemberEntity;
 import za.co.tut.stokvelchain.entity.StokvelGroupEntity;
 import za.co.tut.stokvelchain.entity.UserEntity;
 import za.co.tut.stokvelchain.enums.Role;
+import za.co.tut.stokvelchain.exception.DuplicateResourceException;
+import za.co.tut.stokvelchain.exception.InvalidCredentialsException;
+import za.co.tut.stokvelchain.exception.InvalidReferenceException;
+import za.co.tut.stokvelchain.exception.ResourceNotFoundException;
 import za.co.tut.stokvelchain.repository.MemberRepository;
 import za.co.tut.stokvelchain.repository.StokvelGroupRepository;
 import za.co.tut.stokvelchain.repository.UserRepo;
+import za.co.tut.stokvelchain.security.JwtUtil;
 
 @Service
 @RequiredArgsConstructor
@@ -24,7 +29,7 @@ public class AuthServiceImpl {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
-    @Override
+
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
@@ -64,7 +69,7 @@ public class AuthServiceImpl {
                 .build();
     }
 
-    @Override
+
     @Transactional
     public AuthResponse login(LoginRequest request) {
         UserEntity user = userRepository.findByEmail(request.getEmail())
