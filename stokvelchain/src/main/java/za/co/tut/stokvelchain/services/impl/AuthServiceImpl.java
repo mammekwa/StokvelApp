@@ -19,10 +19,11 @@ import za.co.tut.stokvelchain.repository.MemberRepository;
 import za.co.tut.stokvelchain.repository.StokvelGroupRepository;
 import za.co.tut.stokvelchain.repository.UserRepo;
 import za.co.tut.stokvelchain.security.JwtUtil;
+import za.co.tut.stokvelchain.services.AuthService;
 
 @Service
 @RequiredArgsConstructor
-public class AuthServiceImpl {
+public class AuthServiceImpl implements AuthService {
     private final UserRepo userRepository;
     private final MemberRepository memberRepository;
     private final StokvelGroupRepository stokvelGroupRepository;
