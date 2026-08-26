@@ -8,12 +8,13 @@ import za.co.tut.stokvelchain.entity.UserEntity;
 import za.co.tut.stokvelchain.exception.ResourceNotFoundException;
 import za.co.tut.stokvelchain.mapper.UserMapper;
 import za.co.tut.stokvelchain.repository.UserRepo;
+import za.co.tut.stokvelchain.services.UserService;
 
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class UserServiceImpl {
+public class UserServiceImpl implements UserService {
     private final UserRepo userRepo;
     private final UserMapper userMapper;
 
