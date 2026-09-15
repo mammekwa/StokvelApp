@@ -10,6 +10,8 @@ import java.util.UUID;
 public interface MemberRepository extends JpaRepository<MemberEntity, UUID> {
     Optional<MemberEntity> findByUser_UserId(UUID userId);
 
+    Optional <MemberEntity> findByUser_Email(String email);
+
     Optional<MemberEntity> findByNationalId(String nationalId);
 
     boolean existsByNationalId(String nationalId);

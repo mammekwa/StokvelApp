@@ -23,7 +23,8 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class StokvelGroupEntity {
+public class
+StokvelGroupEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "group_id", updatable = false, nullable = false)

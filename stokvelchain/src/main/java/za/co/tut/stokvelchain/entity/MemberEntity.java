@@ -41,6 +41,9 @@ public class MemberEntity {
     @Column(name = "national_id", nullable = false, length = 13)
     private String nationalId;
 
+    @Column(name = "wallet_address", length = 42)
+    private String walletAddress;
+
     /**
      * When true, the member cannot submit new loan applications.
      * Set automatically by the smart contract when 2 consecutive
