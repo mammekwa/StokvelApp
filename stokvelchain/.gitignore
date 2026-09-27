@@ -1,0 +1,46 @@
+# ===== Secrets / environment =====
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ===== Maven build output =====
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# ===== IntelliJ IDEA =====
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# ===== Eclipse / VS Code / NetBeans =====
+.classpath
+.project
+.settings/
+.vscode/
+nbproject/private/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# ===== Node (solc compile script) =====
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# ===== Logs & temp files =====
+*.log
+logs/
+*.tmp
+*.swp
+
+# ===== OS files =====
+.DS_Store
+Thumbs.db
+desktop.ini
