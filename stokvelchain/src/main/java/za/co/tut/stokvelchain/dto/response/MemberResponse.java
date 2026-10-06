@@ -1,6 +1,8 @@
 package za.co.tut.stokvelchain.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
+import za.co.tut.stokvelchain.enums.MemberStatus;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -26,4 +28,11 @@ public class MemberResponse {
     private UUID groupId;
 
     private String groupName;
+
+    private MemberStatus status;
+
+    private Integer payoutPosition;
+
+    @JsonProperty("isAdmin")
+    private boolean isAdmin;
 }

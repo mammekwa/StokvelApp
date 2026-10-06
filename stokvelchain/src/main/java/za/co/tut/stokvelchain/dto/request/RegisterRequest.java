@@ -30,6 +30,4 @@ public class RegisterRequest {
     @Pattern(regexp = "^[0-9]{13}$", message = "National ID must be a valid 13-digit SA ID number")
     private String nationalId;
 
-    @NotNull(message = "groupId is required")
-    private UUID groupId;
 }

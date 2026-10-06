@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import za.co.tut.stokvelchain.enums.MemberStatus;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -41,7 +42,7 @@ public class MemberEntity {
     @Column(name = "national_id", nullable = false, length = 13)
     private String nationalId;
 
-    @Column(name = "wallet_address", length = 42)
+    @Column(name = "wallet_address", length = 120)
     private String walletAddress;
 
     /**
@@ -58,7 +59,7 @@ public class MemberEntity {
     private LocalDateTime joinedAt;
 
     //Relationships
-    @OneToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false,
             foreignKey = @ForeignKey(name = "fk_member_user"))
     private UserEntity user;
@@ -83,4 +84,12 @@ public class MemberEntity {
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
     private List<TransactionEntity> transactions = new ArrayList<>();
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    @Builder.Default
+    private MemberStatus status = MemberStatus.PENDING;
+
+    @Column(name = "payout_position")
+    private Integer payoutPosition;
 }

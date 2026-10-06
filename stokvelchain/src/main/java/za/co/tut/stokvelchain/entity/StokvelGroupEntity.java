@@ -23,8 +23,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class
-StokvelGroupEntity {
+public class StokvelGroupEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "group_id", updatable = false, nullable = false)
@@ -79,4 +78,7 @@ StokvelGroupEntity {
     @OneToMany(mappedBy = "group", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default
     private List<PayoutEntity> payouts = new ArrayList<>();
+
+    @Column(name = "invite_code", nullable = false, unique = true, length = 8)
+    private String inviteCode;
 }

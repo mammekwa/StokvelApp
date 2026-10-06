@@ -10,7 +10,7 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class AuthResponse {
-    private UUID memberId;
+    private UUID userId;
 
     private String token;
 

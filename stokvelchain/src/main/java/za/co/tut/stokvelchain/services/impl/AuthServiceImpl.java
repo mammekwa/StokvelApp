@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.web3j.crypto.ECKeyPair;
+import org.web3j.crypto.Keys;
 import za.co.tut.stokvelchain.dto.request.LoginRequest;
 import za.co.tut.stokvelchain.dto.request.RegisterRequest;
 import za.co.tut.stokvelchain.dto.response.AuthResponse;
@@ -20,6 +22,8 @@ import za.co.tut.stokvelchain.repository.StokvelGroupRepository;
 import za.co.tut.stokvelchain.repository.UserRepo;
 import za.co.tut.stokvelchain.security.JwtUtil;
 import za.co.tut.stokvelchain.services.AuthService;
+
+import java.security.GeneralSecurityException;
 
 @Service
 @RequiredArgsConstructor
@@ -39,37 +43,30 @@ public class AuthServiceImpl implements AuthService {
         if (userRepository.existsByPhone(request.getPhone())) {
             throw new DuplicateResourceException("An account with this phone number already exists");
         }
-
-        StokvelGroupEntity group = stokvelGroupRepository.findById(request.getGroupId())
-                .orElseThrow(() -> new InvalidReferenceException("groupId does not reference an existing stokvel group"));
+        if (userRepository.existsByNationalId(request.getNationalId())) {
+            throw new DuplicateResourceException("An account with this ID number already exists");
+        }
 
         UserEntity user = UserEntity.builder()
+                .fullName(request.getFullName())
+                .nationalId(request.getNationalId())
                 .email(request.getEmail())
                 .phone(request.getPhone())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .role(Role.MEMBER)
                 .isActive(true)
+
                 .build();
         user = userRepository.save(user);
-
-        MemberEntity member = MemberEntity.builder()
-                .fullName(request.getFullName())
-                .nationalId(request.getNationalId())
-                .loanRestricted(false)
-                .user(user)
-                .group(group)
-                .build();
-        member = memberRepository.save(member);
 
         String token = jwtUtil.generateToken(user.getUserId(), user.getEmail(), user.getRole().name());
 
         return AuthResponse.builder()
-                .memberId(member.getMemberId())
+                .userId(user.getUserId())
                 .token(token)
                 .role(user.getRole().name())
                 .build();
     }
-
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
