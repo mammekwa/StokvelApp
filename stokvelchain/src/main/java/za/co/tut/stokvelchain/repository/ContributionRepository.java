@@ -8,4 +8,9 @@ import java.util.UUID;
 
 public interface ContributionRepository extends JpaRepository<ContributionEntity, UUID> {
     List<ContributionEntity> findByMember_MemberId(UUID memberId);
+    List<ContributionEntity> findByMember_MemberIdAndBlockchainConfirmedTrueOrderByContributionDateAsc(UUID memberId);
+
+    long countByMember_MemberIdAndBlockchainConfirmedTrue(UUID memberId);
+
+    List<ContributionEntity> findByMember_MemberIdOrderByContributionDateDesc(UUID memberId);
 }

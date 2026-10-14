@@ -1,15 +1,18 @@
 package za.co.tut.stokvelchain.services.impl;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import za.co.tut.stokvelchain.blockchain.EventTypeChainMapper;
 import za.co.tut.stokvelchain.dto.request.ContributionRequest;
 import za.co.tut.stokvelchain.dto.response.ContributionResponse;
+import za.co.tut.stokvelchain.dto.response.MembershipResponse;
 import za.co.tut.stokvelchain.entity.ContributionEntity;
 import za.co.tut.stokvelchain.entity.MemberEntity;
 import za.co.tut.stokvelchain.entity.TransactionEntity;
+import za.co.tut.stokvelchain.entity.UserEntity;
 import za.co.tut.stokvelchain.enums.EventType;
 import za.co.tut.stokvelchain.exception.BlockchainOperationException;
 import za.co.tut.stokvelchain.exception.ResourceNotFoundException;
@@ -19,24 +22,28 @@ import za.co.tut.stokvelchain.repository.MemberRepository;
 import za.co.tut.stokvelchain.repository.TransactionRepository;
 import za.co.tut.stokvelchain.services.BlockchainService;
 import za.co.tut.stokvelchain.services.ContributionService;
+import za.co.tut.stokvelchain.services.CurrentUserService;
 
 import java.math.BigInteger;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ContributionServiceImpl implements ContributionService {
     private final ContributionRepository contributionRepository;
     private final TransactionRepository transactionRepository;
     private final MemberRepository memberRepository;
     private final BlockchainService blockchainService;
     private final ContributionMapper contributionMapper;
+    private final CurrentUserService currentUserService;
 
     @Override
     @Transactional
-    public ContributionResponse logContribution(ContributionRequest request) {
-        MemberEntity member = getCurrentMember();
+    public ContributionResponse logContribution(UUID groupId, ContributionRequest request) {
+        MemberEntity member = getCurrentMember(groupId);
 
         // 1. Persist first (unconfirmed) so we have a contributionId to use
         //    as the on-chain sourceRecordId even if the chain call fails.
@@ -62,8 +69,9 @@ public class ContributionServiceImpl implements ContributionService {
         } catch (Exception ex) {
             // Contribution row stays persisted with blockchainConfirmed=false
             // and txHash=null — recoverable/retryable state, not a rollback.
-            throw new BlockchainOperationException(
-                    "Failed to record contribution on-chain for id " + contribution.getContributionId(), ex);
+            log.error("Blockchain write failed -> sourceTable=contributions, sourceRecordId={}, cause={}",
+                    contribution.getContributionId(), ex.getMessage(), ex);
+            return contributionMapper.toResponse(contribution);
         }
 
         // 3. Confirm.
@@ -84,14 +92,15 @@ public class ContributionServiceImpl implements ContributionService {
         return contributionMapper.toResponse(contribution);
     }
 
-    @Override
-    public List<ContributionResponse> getMyContributions() {
-        MemberEntity member = getCurrentMember();
+    public List<ContributionResponse> getMyContributions(UUID groupId) {
+        MemberEntity member = getCurrentMember(groupId);
         return contributionRepository.findByMember_MemberId(member.getMemberId())
                 .stream()
                 .map(contributionMapper::toResponse)
                 .toList();
     }
+
+
 
     /**
      * Ownership guard: memberId is ALWAYS derived from the authenticated
@@ -102,9 +111,10 @@ public class ContributionServiceImpl implements ContributionService {
      * Sprint 1 — adjust the lookup below if your JwtAuthFilter instead
      * puts memberId directly into the token claims.
      */
-    private MemberEntity getCurrentMember() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        return memberRepository.findByUser_Email(username)
-                .orElseThrow(() -> new ResourceNotFoundException("Member not found for user: " + username));
+    private MemberEntity getCurrentMember(UUID groupId) {
+        UserEntity user = currentUserService.get();
+        log.info("Member lookup -> userId={}, email={}, groupId={}", user.getUserId(), user.getEmail(), groupId);
+        return memberRepository.findByUser_UserIdAndGroup_GroupId(user.getUserId(), groupId)
+                .orElseThrow(() -> new ResourceNotFoundException("You are not a member of this group"));
     }
 }

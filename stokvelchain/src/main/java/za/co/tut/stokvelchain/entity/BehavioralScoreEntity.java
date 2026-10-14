@@ -3,6 +3,7 @@ package za.co.tut.stokvelchain.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import za.co.tut.stokvelchain.enums.ModelRecommendation;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -37,6 +38,31 @@ public class BehavioralScoreEntity {
     @Column(name = "tenure_months")
     private Integer tenureMonths;
 
+    /** Outstanding amount relative to the member's capacity (0.0 – 1.0). */
+    @Column(name = "credit_amount_normalised", precision = 5, scale = 4)
+    private BigDecimal creditAmountNormalised;
+
+    /** Member's age at scoring time, as sent to the ML model. */
+    @Column(name = "age")
+    private Integer age;
+
+    /** Decision threshold the model used at scoring time. */
+    @Column(name = "threshold", precision = 5, scale = 4)
+    private BigDecimal threshold;
+
+    /** Model's verdict: APPROVE if aiScore >= threshold, otherwise DECLINE. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "recommendation", length = 20)
+    private ModelRecommendation recommendation;
+
+    /** Version of the deployed model that produced this score. */
+    @Column(name = "model_version", length = 40)
+    private String modelVersion;
+
+    /** SHAP reasons returned by the ML sidecar, stored as raw JSON for audit. */
+    @Column(name = "reasons_json", columnDefinition = "TEXT")
+    private String reasonsJson;
+
     /**
      * Credit eligibility probability (0.0 – 1.0) returned by the ML model.
      * Multiplied by 100 for display on the Admin dashboard (e.g. 0.78 → 78/100).
@@ -53,4 +79,10 @@ public class BehavioralScoreEntity {
     @JoinColumn(name = "member_id", nullable = false,
             foreignKey = @ForeignKey(name = "fk_score_member"))
     private MemberEntity member;
+
+    /** Loan request this score was produced for — null for ad-hoc scoring. */
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "loan_id",
+            foreignKey = @ForeignKey(name = "fk_score_loan"))
+    private LoanEntity loan;
 }

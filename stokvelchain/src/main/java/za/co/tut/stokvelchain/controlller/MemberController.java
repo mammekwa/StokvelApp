@@ -7,8 +7,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import za.co.tut.stokvelchain.dto.response.MemberResponse;
+import za.co.tut.stokvelchain.dto.response.MembershipResponse;
 import za.co.tut.stokvelchain.services.MemberService;
 
+import java.util.List;
 import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/members")
@@ -19,5 +21,9 @@ public class MemberController {
     @GetMapping("/{id}")
     public ResponseEntity<MemberResponse> getMemberById(@PathVariable("id") UUID id) {
         return ResponseEntity.ok(memberService.getMemberById(id));
+    }
+    @GetMapping("/me")
+    public ResponseEntity<List<MembershipResponse>> getMyMemberships() {
+        return ResponseEntity.ok(memberService.getMyMemberships());
     }
 }

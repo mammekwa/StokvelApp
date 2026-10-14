@@ -71,6 +71,7 @@ public class GroupServiceImpl implements GroupService {
 
         // The creator is also a normal contributing member, first in the payout rotation.
         MemberEntity adminMember = newMember(user, group, MemberStatus.ACTIVE, 1);
+        adminMember.setActivatedAt(LocalDateTime.now());
         adminMember.setWalletAddress(generateWalletAddress());
         memberRepository.save(adminMember);
 
@@ -255,6 +256,7 @@ public class GroupServiceImpl implements GroupService {
         MemberEntity member = findPendingMember(group, memberId);
         member.setStatus(MemberStatus.ACTIVE);
         member.setWalletAddress(generateWalletAddress());
+        member.setActivatedAt(LocalDateTime.now());
 
         member.setPayoutPosition(memberRepository.findMaxPayoutPosition(group) + 1);
         return toMemberResponse(member, group);

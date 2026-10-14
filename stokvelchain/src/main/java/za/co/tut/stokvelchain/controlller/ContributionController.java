@@ -10,21 +10,23 @@ import za.co.tut.stokvelchain.dto.response.ContributionResponse;
 import za.co.tut.stokvelchain.services.ContributionService;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/contributions")
+@RequestMapping("/api/v1/groups/{groupId}/contributions")
 @RequiredArgsConstructor
 public class ContributionController {
     private final ContributionService contributionService;
 
     @PostMapping
-    public ResponseEntity<ContributionResponse> logContribution(@Valid @RequestBody ContributionRequest request) {
-        ContributionResponse response = contributionService.logContribution(request);
+    public ResponseEntity<ContributionResponse> logContribution(@PathVariable UUID groupId,
+                                                                @Valid @RequestBody ContributionRequest request) {
+        ContributionResponse response = contributionService.logContribution(groupId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/me")
-    public ResponseEntity<List<ContributionResponse>> getMyContributions() {
-        return ResponseEntity.ok(contributionService.getMyContributions());
+    public ResponseEntity<List<ContributionResponse>> getMyContributions(@PathVariable UUID groupId) {
+        return ResponseEntity.ok(contributionService.getMyContributions(groupId));
     }
 }

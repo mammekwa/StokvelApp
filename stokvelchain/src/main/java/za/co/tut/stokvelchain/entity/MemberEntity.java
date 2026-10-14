@@ -17,7 +17,7 @@ import java.util.UUID;
 @Table(
         name = "members",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_member_national_id", columnNames = "national_id")
+                @UniqueConstraint(name = "uk_member_national_id_group", columnNames = {"national_id", "group_id"})
         }
 )
 @Getter
@@ -57,6 +57,10 @@ public class MemberEntity {
     @CreationTimestamp
     @Column(name = "joined_at", nullable = false, updatable = false)
     private LocalDateTime joinedAt;
+
+    /** When the member became ACTIVE — contributions are due from this point. */
+    @Column(name = "activated_at")
+    private LocalDateTime activatedAt;
 
     //Relationships
     @ManyToOne(fetch = FetchType.LAZY)

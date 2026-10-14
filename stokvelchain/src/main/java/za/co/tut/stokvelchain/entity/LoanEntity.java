@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import za.co.tut.stokvelchain.enums.LoanStatus;
+import za.co.tut.stokvelchain.enums.OverrideReason;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -61,11 +62,31 @@ public class LoanEntity {
     @Column(name = "tx_hash", length = 66)
     private String txHash;
 
+    /** True when the Admin's decision differs from the model's recommendation. */
+    @Column(name = "overridden", nullable = false)
+    @Builder.Default
+    private boolean overridden = false;
+
+    /** Required whenever overridden = true; kept as labelled data for retraining. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "override_category", length = 40)
+    private OverrideReason overrideCategory;
+
+    /** Admin's written justification for overriding the model. */
+    @Column(name = "override_reason", length = 1000)
+    private String overrideReason;
+
     //Relationships
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_id", nullable = false,
             foreignKey = @ForeignKey(name = "fk_loan_member"))
     private MemberEntity member;
+
+    /** Admin who approved or rejected the loan — null until resolved. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "decided_by",
+            foreignKey = @ForeignKey(name = "fk_loan_decided_by"))
+    private UserEntity decidedBy;
 
     @OneToMany(mappedBy = "loan", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @Builder.Default

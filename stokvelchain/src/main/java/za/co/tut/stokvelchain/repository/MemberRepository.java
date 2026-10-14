@@ -16,8 +16,10 @@ import java.util.UUID;
 public interface MemberRepository extends JpaRepository<MemberEntity, UUID> {
     Optional<MemberEntity> findByUserAndGroup(UserEntity user, StokvelGroupEntity group);
     Optional <MemberEntity> findByUser_Email(String username);
+    Optional<MemberEntity> findByUser_EmailAndGroup_GroupId(String email, UUID groupId);
+    Optional<MemberEntity> findByUser_UserIdAndGroup_GroupId(UUID userId, UUID groupId);
     List<MemberEntity> findByUserAndStatus(UserEntity user, MemberStatus status);
-
+    List<MemberEntity> findByUser_UserId(UUID userId);
     List<MemberEntity> findByGroupAndStatusOrderByPayoutPositionAsc(StokvelGroupEntity group, MemberStatus status);
 
     List<MemberEntity> findByGroupAndStatusOrderByJoinedAtAsc(StokvelGroupEntity group, MemberStatus status);
