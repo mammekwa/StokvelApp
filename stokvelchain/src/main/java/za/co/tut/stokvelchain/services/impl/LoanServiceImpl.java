@@ -368,6 +368,7 @@ public class LoanServiceImpl implements LoanService {
         if (json == null || json.isBlank()) {
             return List.of();
         }
-        return JSON.readValue(json, new TypeReference<List<ScoreReason>>() {});
+        List<ScoreReason> reasons = JSON.readValue(json, new TypeReference<List<ScoreReason>>() {});
+        return reasons != null ? reasons : List.of();
     }
 }

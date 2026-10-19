@@ -3,6 +3,8 @@ package za.co.tut.stokvelchain.services.impl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.web3j.protocol.Web3j;
+import org.web3j.tx.gas.ContractGasProvider;
+import org.web3j.tx.gas.StaticGasProvider;
 import za.co.tut.stokvelchain.blockchain.StokvelLedgerContract;
 import za.co.tut.stokvelchain.exception.BlockchainOperationException;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +17,7 @@ import za.co.tut.stokvelchain.dto.response.BlockchainTestResponse;
 import za.co.tut.stokvelchain.exception.BlockchainOperationException;
 import za.co.tut.stokvelchain.services.BlockchainService;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.util.UUID;
 
@@ -33,12 +36,15 @@ public class BlockchainServiceImpl implements BlockchainService {
         this.credentials = credentials;
     }
 
-    private StokvelLedgerContract loadContract() {
+    private StokvelLedgerContract loadContract() throws IOException {
+        BigInteger gasPrice = web3j.ethGasPrice().send().getGasPrice();
+        ContractGasProvider gasProvider = new StaticGasProvider(gasPrice, BigInteger.valueOf(1_000_000));
+
         return StokvelLedgerContract.load(
                 contractAddress,
                 web3j,
                 credentials,
-                new DefaultGasProvider()
+                gasProvider
         );
     }
 
