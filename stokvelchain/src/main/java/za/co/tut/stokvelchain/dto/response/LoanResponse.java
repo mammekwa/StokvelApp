@@ -24,6 +24,13 @@ public class LoanResponse {
     int repaymentMonths;
     LoanStatus status;
 
+    // Repayment terms and progress
+    BigDecimal interestRate;
+    BigDecimal totalRepayable;
+    BigDecimal totalRepaid;
+    BigDecimal outstanding;
+    BigDecimal instalmentAmount;
+
     // Credit model output (explainability)
     BigDecimal aiScore;
     BigDecimal threshold;

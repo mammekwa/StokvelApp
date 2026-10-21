@@ -31,6 +31,9 @@ public class LoanRepaymentEntity {
     @Column(name = "payment_date", nullable = false)
     private LocalDate paymentDate;
 
+    @Column(name = "payment_reference", length = 100)
+    private String paymentReference;
+
     /** Ethereum tx hash from recordRepayment() — null until confirmed. */
     @Column(name = "tx_hash", length = 66)
     private String txHash;
@@ -38,7 +41,13 @@ public class LoanRepaymentEntity {
     @Column(name = "blockchain_confirmed", nullable = false)
     @Builder.Default
     private boolean blockchainConfirmed = false;
+    /** Flat interest rate set from the AI score at approval (e.g. 0.1000 = 10%). */
+    @Column(name = "interest_rate", precision = 5, scale = 4)
+    private BigDecimal interestRate;
 
+    /** Principal plus interest — the total the member must repay. */
+    @Column(name = "total_repayable", precision = 12, scale = 2)
+    private BigDecimal totalRepayable;
     //Relationships
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "loan_id", nullable = false,

@@ -71,4 +71,8 @@ public class GlobalExceptionHandler {
                 .build();
         return ResponseEntity.status(status).body(body);
     }
+    @ExceptionHandler(RepaymentException.class)
+    public ResponseEntity<ErrorResponse> handleRepayment(RepaymentException ex, HttpServletRequest request) {
+        return build(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), request);
+    }
 }

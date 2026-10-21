@@ -59,6 +59,8 @@ public class LoanServiceImpl implements LoanService {
     private final CreditScoringClient creditScoringClient;
     private final BlockchainService blockchainService;
     private final NotificationService notificationService;
+    private final InterestRatePolicy interestRatePolicy;
+    private final LoanRepaymentRepository loanRepaymentRepository;
 
     // ── Member: apply ─────────────────────────────────────────────────────────
 
@@ -180,6 +182,9 @@ public class LoanServiceImpl implements LoanService {
 
         // Approved: persist the approval first, then disburse on-chain.
         loan.setStatus(LoanStatus.APPROVED_PENDING_DISBURSEMENT);
+        BigDecimal rate = interestRatePolicy.rateFor(loan.getAiScore(), score.getThreshold());
+        loan.setInterestRate(rate);
+        loan.setTotalRepayable(loan.getAmount().multiply(BigDecimal.ONE.add(rate)).setScale(2, RoundingMode.HALF_UP));
         loan = loanRepository.saveAndFlush(loan);
 
         disburse(loan);
@@ -301,9 +306,14 @@ public class LoanServiceImpl implements LoanService {
     private void notifyMemberOfApproval(LoanEntity loan, StokvelGroupEntity group) {
         notificationService.notify(loan.getMember().getUser(), group, NotificationType.LOAN_APPROVED,
                 "Loan approved",
-                String.format(Locale.ROOT, "Your loan of R%s has been approved and disbursed.",
-                        loan.getAmount().toPlainString()),
+                String.format(Locale.ROOT,
+                        "Your loan of R%s has been approved and disbursed. Interest: %s%% (based on your credit score). Total to repay: R%s over %d months.",
+                        loan.getAmount().toPlainString(),
+                        loan.getInterestRate() != null ? loan.getInterestRate().movePointRight(2).stripTrailingZeros().toPlainString() : "0",
+                        (loan.getTotalRepayable() != null ? loan.getTotalRepayable() : loan.getAmount()).toPlainString(),
+                        loan.getRepaymentMonths()),
                 loan.getLoanId());
+
     }
 
     // ── Lookups and helpers ───────────────────────────────────────────────────
@@ -345,6 +355,9 @@ public class LoanServiceImpl implements LoanService {
     }
 
     private LoanResponse toResponse(LoanEntity loan, BehavioralScoreEntity score) {
+        BigDecimal totalRepayable = loan.getTotalRepayable() != null ? loan.getTotalRepayable() : loan.getAmount();
+        BigDecimal totalRepaid = loanRepaymentRepository.sumAmountByLoanId(loan.getLoanId());
+        boolean repayable = loan.getStatus() == LoanStatus.APPROVED || loan.getStatus() == LoanStatus.REPAID;
         return LoanResponse.builder()
                 .loanId(loan.getLoanId())
                 .memberName(loan.getMember().getFullName())
@@ -361,6 +374,11 @@ public class LoanServiceImpl implements LoanService {
                 .requestedAt(loan.getRequestedAt())
                 .resolvedAt(loan.getResolvedAt())
                 .txHash(loan.getTxHash())
+                .interestRate(loan.getInterestRate())
+                .totalRepayable(totalRepayable)
+                .totalRepaid(totalRepaid)
+                .outstanding(repayable ? totalRepayable.subtract(totalRepaid).max(BigDecimal.ZERO) : null)
+                .instalmentAmount(totalRepayable.divide(BigDecimal.valueOf(loan.getRepaymentMonths()), 2, RoundingMode.HALF_UP))
                 .build();
     }
 

@@ -76,6 +76,14 @@ public class LoanEntity {
     @Column(name = "override_reason", length = 1000)
     private String overrideReason;
 
+    /** Flat interest rate set from the AI score at approval (e.g. 0.1000 = 10%). */
+    @Column(name = "interest_rate", precision = 5, scale = 4)
+    private BigDecimal interestRate;
+
+    /** Principal plus interest — the total the member must repay. */
+    @Column(name = "total_repayable", precision = 12, scale = 2)
+    private BigDecimal totalRepayable;
+
     //Relationships
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_id", nullable = false,
