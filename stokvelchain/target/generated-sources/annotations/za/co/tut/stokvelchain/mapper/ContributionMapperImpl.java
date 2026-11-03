@@ -9,7 +9,7 @@ import za.co.tut.stokvelchain.entity.MemberEntity;
 
 @Generated(
     value = "org.mapstruct.ap.MappingProcessor",
-    date = "2026-09-29T21:18:06+0200",
+    date = "2026-10-21T22:24:13+0200",
     comments = "version: 1.6.3, compiler: javac, environment: Java 21.0.12.1 (Microsoft)"
 )
 @Component

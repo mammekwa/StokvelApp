@@ -102,7 +102,9 @@ public class LoanServiceImpl implements LoanService {
         score = behavioralScoreRepository.save(score);
 
         // 4. Explainability: tell the group admin why the model recommends declining.
-        if (score.getRecommendation() == ModelRecommendation.DECLINE) {
+        if (isAdminLoan(loan)) {
+            notifyMembersOfAdminLoan(member, loan, scoring);
+        } else if (score.getRecommendation() == ModelRecommendation.DECLINE) {
             notifyAdminOfDecline(member, loan, scoring);
         }
 
@@ -144,11 +146,10 @@ public class LoanServiceImpl implements LoanService {
     @Override
     @Transactional(noRollbackFor = BlockchainOperationException.class)
     public LoanResponse decideLoan(UUID groupId, UUID loanId, LoanDecisionRequest request) {
-        UserEntity admin = currentUserService.get();
+        UserEntity decider = currentUserService.get();
         StokvelGroupEntity group = findGroup(groupId);
-        requireAdmin(group, admin);
-
         LoanEntity loan = findLoanInGroup(group, loanId);
+        requireDecider(group, loan, decider);
         if (loan.getStatus() != LoanStatus.PENDING) {
             throw new LoanDecisionException("Only pending loan applications can be decided");
         }
@@ -166,7 +167,7 @@ public class LoanServiceImpl implements LoanService {
         }
 
         loan.setOverridden(overridden);
-        loan.setDecidedBy(admin);
+        loan.setDecidedBy(decider);
         loan.setResolvedAt(LocalDateTime.now());
 
         if (!approve) {
@@ -174,8 +175,9 @@ public class LoanServiceImpl implements LoanService {
             loan = loanRepository.save(loan);
             notificationService.notify(loan.getMember().getUser(), group, NotificationType.LOAN_REJECTED,
                     "Loan application declined",
-                    String.format(Locale.ROOT, "Your loan application of R%s was declined by the group admin.",
-                            loan.getAmount().toPlainString()),
+                    String.format(Locale.ROOT, "Your loan application of R%s was declined by %s.",
+                            loan.getAmount().toPlainString(),
+                            isAdminLoan(loan) ? "a group member" : "the group admin"),
                     loan.getLoanId());
             return toResponse(loan, score);
         }
@@ -206,6 +208,18 @@ public class LoanServiceImpl implements LoanService {
         disburse(loan);
         notifyMemberOfApproval(loan, group);
         return toResponse(loan);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<LoanResponse> getLoansToReview(UUID groupId) {
+        StokvelGroupEntity group = findGroup(groupId);
+        UserEntity user = currentUserService.get();
+        return loanRepository.findByMember_GroupAndStatusOrderByRequestedAtDesc(group, LoanStatus.PENDING)
+                .stream()
+                .filter(loan -> canDecide(group, loan, user))
+                .map(this::toResponse)
+                .toList();
     }
 
     // ── Disbursement ──────────────────────────────────────────────────────────
@@ -264,6 +278,12 @@ public class LoanServiceImpl implements LoanService {
         if (loanRepository.existsByMember_MemberIdAndStatusIn(member.getMemberId(), OPEN_STATUSES)) {
             throw new LoanEligibilityException("You already have a loan application in progress");
         }
+        boolean isAdmin = member.getUser().getUserId().equals(member.getGroup().getAdminUser().getUserId());
+        if (isAdmin && memberRepository.findByGroup_GroupIdAndStatusOrderByPayoutPositionAsc(
+                member.getGroup().getGroupId(), MemberStatus.ACTIVE).size() < 2) {
+            throw new LoanEligibilityException(
+                    "Your group needs at least one other active member to review the admin's loan application");
+        }
     }
 
     private void validateOverride(LoanDecisionRequest request) {
@@ -275,6 +295,34 @@ public class LoanServiceImpl implements LoanService {
         if (reason == null || reason.trim().length() < MIN_OVERRIDE_REASON_LENGTH) {
             throw new LoanDecisionException("A written reason of at least " + MIN_OVERRIDE_REASON_LENGTH
                     + " characters is required when overriding the credit model");
+        }
+    }
+    private boolean isAdminLoan(LoanEntity loan) {
+        return loan.getMember().getUser().getUserId()
+                .equals(loan.getMember().getGroup().getAdminUser().getUserId());
+    }
+
+    /** The admin decides members' loans; any other active member decides the admin's own loan. Nobody decides their own. */
+    private boolean canDecide(StokvelGroupEntity group, LoanEntity loan, UserEntity user) {
+        if (loan.getMember().getUser().getUserId().equals(user.getUserId())) {
+            return false;
+        }
+        if (isAdminLoan(loan)) {
+            return memberRepository.findByUser_UserIdAndGroup_GroupId(user.getUserId(), group.getGroupId())
+                    .map(m -> m.getStatus() == MemberStatus.ACTIVE)
+                    .orElse(false);
+        }
+        return group.getAdminUser().getUserId().equals(user.getUserId());
+    }
+
+    private void requireDecider(StokvelGroupEntity group, LoanEntity loan, UserEntity user) {
+        if (loan.getMember().getUser().getUserId().equals(user.getUserId())) {
+            throw new AccessDeniedException("You can't decide your own loan application; another group member must review it");
+        }
+        if (!canDecide(group, loan, user)) {
+            throw new AccessDeniedException(isAdminLoan(loan)
+                    ? "Only active group members can review the admin's loan application"
+                    : "Only the group admin can decide this loan application");
         }
     }
 
@@ -314,6 +362,32 @@ public class LoanServiceImpl implements LoanService {
                         loan.getRepaymentMonths()),
                 loan.getLoanId());
 
+    }
+    private void notifyMembersOfAdminLoan(MemberEntity admin, LoanEntity loan, ScoringResponse scoring) {
+        String reasons = scoring.getReasons() == null ? "" : scoring.getReasons().stream()
+                .filter(r -> r.getImpact() < 0)
+                .limit(MAX_REASONS_IN_NOTIFICATION)
+                .map(ScoreReason::getMessage)
+                .collect(Collectors.joining("; "));
+
+        String message = String.format(Locale.ROOT,
+                "%s (group admin) applied for a loan of R%s over %d months. The credit model recommends %s: "
+                        + "score %.1f/100 (minimum %.1f).%s The admin can't approve their own loan, so any member can review it on the Loans page.",
+                admin.getFullName(),
+                loan.getAmount().toPlainString(),
+                loan.getRepaymentMonths(),
+                scoring.isEligible() ? "approving" : "declining",
+                scoring.getScore(),
+                scoring.getThreshold() * 100,
+                reasons.isEmpty() ? "" : " Main concerns: " + reasons + ".");
+
+        for (MemberEntity reviewer : memberRepository.findByGroup_GroupIdAndStatusOrderByPayoutPositionAsc(
+                admin.getGroup().getGroupId(), MemberStatus.ACTIVE)) {
+            if (!reviewer.getMemberId().equals(admin.getMemberId())) {
+                notificationService.notify(reviewer.getUser(), admin.getGroup(), NotificationType.LOAN_REVIEW_REQUESTED,
+                        "Admin's loan needs your review", message, loan.getLoanId());
+            }
+        }
     }
 
     // ── Lookups and helpers ───────────────────────────────────────────────────
