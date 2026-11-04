@@ -18,4 +18,5 @@ public interface LoanService {
     LoanResponse decideLoan(UUID groupId, UUID loanId, LoanDecisionRequest request);
 
     LoanResponse retryDisbursement(UUID groupId, UUID loanId);
+    List<LoanResponse> getLoansToReview(UUID groupId);
 }

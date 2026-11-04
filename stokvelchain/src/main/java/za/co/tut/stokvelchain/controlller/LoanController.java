@@ -55,5 +55,11 @@ public class LoanController {
                                                           @PathVariable UUID loanId) {
         return ResponseEntity.ok(loanService.retryDisbursement(groupId, loanId));
     }
+    /** Pending loans the current user may decide (the admin: members' loans; members: the admin's loan). */
+    @GetMapping("/to-review")
+    public ResponseEntity<List<LoanResponse>> getLoansToReview(@PathVariable UUID groupId) {
+        return ResponseEntity.ok(loanService.getLoansToReview(groupId));
+    }
+
 }
 

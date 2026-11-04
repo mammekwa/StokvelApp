@@ -21,7 +21,7 @@ public interface MemberRepository extends JpaRepository<MemberEntity, UUID> {
     List<MemberEntity> findByUserAndStatus(UserEntity user, MemberStatus status);
     List<MemberEntity> findByUser_UserId(UUID userId);
     List<MemberEntity> findByGroupAndStatusOrderByPayoutPositionAsc(StokvelGroupEntity group, MemberStatus status);
-
+    List<MemberEntity> findByGroup_GroupIdAndStatusOrderByPayoutPositionAsc(UUID groupId, MemberStatus status);
     List<MemberEntity> findByGroupAndStatusOrderByJoinedAtAsc(StokvelGroupEntity group, MemberStatus status);
 
     long countByGroupAndStatus(StokvelGroupEntity group, MemberStatus status);

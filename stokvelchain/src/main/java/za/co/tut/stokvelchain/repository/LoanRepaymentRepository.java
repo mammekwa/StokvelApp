@@ -14,5 +14,9 @@ public interface LoanRepaymentRepository extends JpaRepository<LoanRepaymentEnti
     @Query("select coalesce(sum(r.amount), 0) from LoanRepaymentEntity r where r.loan.loanId = :loanId and r.blockchainConfirmed = true")
     BigDecimal sumAmountByLoanId(@Param("loanId") UUID loanId);
 
+    /** Payouts: confirmed repayments returned to the group's pool. */
+    @Query("select coalesce(sum(r.amount), 0) from LoanRepaymentEntity r where r.loan.member.group.groupId = :groupId and r.blockchainConfirmed = true")
+    BigDecimal sumConfirmedByGroupId(@Param("groupId") UUID groupId);
+
     List<LoanRepaymentEntity> findByLoan_LoanIdOrderByPaymentDateDesc(UUID loanId);
 }
