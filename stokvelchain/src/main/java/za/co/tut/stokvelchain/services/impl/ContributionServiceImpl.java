@@ -2,30 +2,33 @@ package za.co.tut.stokvelchain.services.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import za.co.tut.stokvelchain.blockchain.EventTypeChainMapper;
 import za.co.tut.stokvelchain.dto.request.ContributionRequest;
-import za.co.tut.stokvelchain.dto.response.ContributionResponse;
-import za.co.tut.stokvelchain.dto.response.MembershipResponse;
-import za.co.tut.stokvelchain.entity.ContributionEntity;
-import za.co.tut.stokvelchain.entity.MemberEntity;
-import za.co.tut.stokvelchain.entity.TransactionEntity;
-import za.co.tut.stokvelchain.entity.UserEntity;
+import za.co.tut.stokvelchain.dto.response.*;
+import za.co.tut.stokvelchain.entity.*;
+import za.co.tut.stokvelchain.enums.ContributionFrequency;
 import za.co.tut.stokvelchain.enums.EventType;
-import za.co.tut.stokvelchain.exception.BlockchainOperationException;
+import za.co.tut.stokvelchain.enums.MemberStatus;
+import za.co.tut.stokvelchain.exception.InvalidReferenceException;
 import za.co.tut.stokvelchain.exception.ResourceNotFoundException;
 import za.co.tut.stokvelchain.mapper.ContributionMapper;
 import za.co.tut.stokvelchain.repository.ContributionRepository;
 import za.co.tut.stokvelchain.repository.MemberRepository;
+import za.co.tut.stokvelchain.repository.StokvelGroupRepository;
 import za.co.tut.stokvelchain.repository.TransactionRepository;
 import za.co.tut.stokvelchain.services.BlockchainService;
 import za.co.tut.stokvelchain.services.ContributionService;
 import za.co.tut.stokvelchain.services.CurrentUserService;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
@@ -39,6 +42,7 @@ public class ContributionServiceImpl implements ContributionService {
     private final BlockchainService blockchainService;
     private final ContributionMapper contributionMapper;
     private final CurrentUserService currentUserService;
+    private final StokvelGroupRepository groupRepository;
 
     @Override
     @Transactional
@@ -98,6 +102,101 @@ public class ContributionServiceImpl implements ContributionService {
                 .stream()
                 .map(contributionMapper::toResponse)
                 .toList();
+    }
+
+    /**
+     * Admin report: every contribution in the period, plus each active member's arrears.
+     * Expected = contribution amount × contributions due (counted from when the member became active).
+     * Only contributions confirmed on the blockchain count as paid.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public ContributionLedgerResponse getGroupLedger(UUID groupId, LocalDate from, LocalDate to) {
+        StokvelGroupEntity group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new ResourceNotFoundException("Group not found: " + groupId));
+        if (!group.getAdminUser().getUserId().equals(currentUserService.get().getUserId())) {
+            throw new AccessDeniedException("Only the group admin can view the group contribution ledger");
+        }
+
+        LocalDate start = from != null ? from : group.getCreatedAt().toLocalDate();
+        LocalDate end = to != null ? to : LocalDate.now();
+        if (start.isAfter(end)) {
+            throw new InvalidReferenceException("'from' must be on or before 'to'");
+        }
+
+        List<ContributionEntity> contributions = contributionRepository
+                .findByMember_Group_GroupIdAndContributionDateBetweenOrderByContributionDateAscCreatedAtAsc(groupId, start, end);
+
+        List<ContributionLedgerEntry> entries = contributions.stream()
+                .map(c -> ContributionLedgerEntry.builder()
+                        .contributionId(c.getContributionId())
+                        .memberId(c.getMember().getMemberId())
+                        .memberName(c.getMember().getFullName())
+                        .amount(c.getAmount())
+                        .contributionDate(c.getContributionDate())
+                        .paymentReference(c.getPaymentReference())
+                        .txHash(c.getTxHash())
+                        .blockchainConfirmed(c.isBlockchainConfirmed())
+                        .build())
+                .toList();
+
+        List<MemberArrearsEntry> members = memberRepository
+                .findByGroupAndStatusOrderByPayoutPositionAsc(group, MemberStatus.ACTIVE)
+                .stream()
+                .map(m -> arrearsFor(group, m, contributions, start, end))
+                .toList();
+
+        return ContributionLedgerResponse.builder()
+                .from(start)
+                .to(end)
+                .contributionAmount(group.getContributionAmount())
+                .contributionFrequency(group.getContributionFrequency())
+                .totalExpected(members.stream().map(MemberArrearsEntry::getExpected).reduce(BigDecimal.ZERO, BigDecimal::add))
+                .totalPaid(members.stream().map(MemberArrearsEntry::getPaid).reduce(BigDecimal.ZERO, BigDecimal::add))
+                .totalArrears(members.stream().map(MemberArrearsEntry::getArrears).reduce(BigDecimal.ZERO, BigDecimal::add))
+                .members(members)
+                .contributions(entries)
+                .build();
+    }
+
+    private MemberArrearsEntry arrearsFor(StokvelGroupEntity group, MemberEntity member,
+                                          List<ContributionEntity> contributions, LocalDate from, LocalDate to) {
+        List<ContributionEntity> own = contributions.stream()
+                .filter(c -> c.getMember().getMemberId().equals(member.getMemberId()))
+                .toList();
+        BigDecimal paid = own.stream().filter(ContributionEntity::isBlockchainConfirmed)
+                .map(ContributionEntity::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal unconfirmed = own.stream().filter(c -> !c.isBlockchainConfirmed())
+                .map(ContributionEntity::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        LocalDateTime activeSince = member.getActivatedAt() != null ? member.getActivatedAt() : member.getJoinedAt();
+        LocalDate dueFrom = activeSince != null && activeSince.toLocalDate().isAfter(from) ? activeSince.toLocalDate() : from;
+        int due = contributionsDue(group.getContributionFrequency(), dueFrom, to);
+        BigDecimal expected = group.getContributionAmount().multiply(BigDecimal.valueOf(due));
+
+        return MemberArrearsEntry.builder()
+                .memberId(member.getMemberId())
+                .memberName(member.getFullName())
+                .payoutPosition(member.getPayoutPosition())
+                .contributionsDue(due)
+                .expected(expected)
+                .paid(paid)
+                .unconfirmed(unconfirmed)
+                .arrears(expected.subtract(paid).max(BigDecimal.ZERO))
+                .contributionCount(own.size())
+                .lastContributionDate(own.isEmpty() ? null : own.get(own.size() - 1).getContributionDate())
+                .build();
+    }
+
+    /** Monthly: one per calendar month touched by the period. Weekly: one per started week. */
+    private int contributionsDue(ContributionFrequency frequency, LocalDate from, LocalDate to) {
+        if (from.isAfter(to)) {
+            return 0;
+        }
+        if (frequency == ContributionFrequency.WEEKLY) {
+            return (int) (ChronoUnit.DAYS.between(from, to) / 7) + 1;
+        }
+        return (int) ChronoUnit.MONTHS.between(YearMonth.from(from), YearMonth.from(to)) + 1;
     }
 
 

@@ -24,4 +24,7 @@ public interface ContributionRepository extends JpaRepository<ContributionEntity
 
     /** Payouts: has this member made a confirmed contribution since the last payout? */
     boolean existsByMember_MemberIdAndBlockchainConfirmedTrueAndContributionDateGreaterThanEqual(UUID memberId, LocalDate since);
+
+    List<ContributionEntity> findByMember_Group_GroupIdAndContributionDateBetweenOrderByContributionDateAscCreatedAtAsc(UUID groupId, LocalDate from, LocalDate to);
+
 }
