@@ -5,5 +5,6 @@ public enum NotificationType {
     LOAN_APPROVED,
     LOAN_REJECTED,
     LOAN_REPAID,
-    LOAN_REVIEW_REQUESTED
+    LOAN_REVIEW_REQUESTED,
+    PAYOUT_RECEIVED
 }

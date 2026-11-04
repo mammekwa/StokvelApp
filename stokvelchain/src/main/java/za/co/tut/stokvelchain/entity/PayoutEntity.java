@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -43,6 +44,11 @@ public class PayoutEntity {
     @Column(name = "blockchain_confirmed", nullable = false)
     @Builder.Default
     private boolean blockchainConfirmed = false;
+
+    /** When the payout row was created — orders the history and decides whose turn is next. */
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
 
     //Relationships
     @ManyToOne(fetch = FetchType.LAZY)
