@@ -3,13 +3,16 @@ package za.co.tut.stokvelchain.web;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import za.co.tut.stokvelchain.controlller.PayoutController;
 import za.co.tut.stokvelchain.dto.response.PayoutPreviewResponse;
 import za.co.tut.stokvelchain.dto.response.PayoutResponse;
 import za.co.tut.stokvelchain.dto.response.PayoutRotationEntry;
+import za.co.tut.stokvelchain.exception.BlockchainOperationException;
 import za.co.tut.stokvelchain.exception.GlobalExceptionHandler;
+import za.co.tut.stokvelchain.exception.PayoutException;
 import za.co.tut.stokvelchain.exception.ResourceNotFoundException;
 import za.co.tut.stokvelchain.services.PayoutService;
 
@@ -96,6 +99,38 @@ class PayoutControllerIntegrationTest {
     }
 
     @Test
+    @DisplayName("No funds to pay out: 422 with the reason")
+    void noFundsReturns422() throws Exception {
+        when(payoutService.processNextPayout(groupId)).thenThrow(new PayoutException("There are no funds available to pay out"));
+
+        mvc.perform(post("/api/v1/groups/{groupId}/payouts", groupId))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.message").value("There are no funds available to pay out"));
+    }
+
+    @Test
+    @DisplayName("Member trying to pay out: 403 explaining only the admin can")
+    void nonAdminReturns403() throws Exception {
+        when(payoutService.processNextPayout(groupId)).thenThrow(new AccessDeniedException("Only the group admin can process payouts"));
+
+        mvc.perform(post("/api/v1/groups/{groupId}/payouts", groupId))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Only the group admin can process payouts"));
+    }
+
+    @Test
+    @DisplayName("Blockchain write failed: 503 telling the admin to retry the payout")
+    void failedChainWriteReturns503() throws Exception {
+        when(payoutService.processNextPayout(groupId)).thenThrow(new BlockchainOperationException(
+                "Payout saved but on-chain recording failed; retry the payout", new RuntimeException("RPC timeout")));
+
+        mvc.perform(post("/api/v1/groups/{groupId}/payouts", groupId))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.message").value("Payout saved but on-chain recording failed; retry the payout"));
+    }
+
+    @Test
     @DisplayName("An unknown group returns 404")
     void unknownGroupReturnsNotFound() throws Exception {
         when(payoutService.previewNextPayout(groupId)).thenThrow(new ResourceNotFoundException("Group not found: " + groupId));
@@ -105,4 +140,3 @@ class PayoutControllerIntegrationTest {
                 .andExpect(jsonPath("$.message").value("Group not found: " + groupId));
     }
 }
-

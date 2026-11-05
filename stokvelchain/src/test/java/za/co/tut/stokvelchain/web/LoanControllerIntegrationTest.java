@@ -3,16 +3,19 @@ package za.co.tut.stokvelchain.web;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.server.ResponseStatusException;
 import za.co.tut.stokvelchain.controlller.LoanController;
 import za.co.tut.stokvelchain.dto.request.LoanApplicationRequest;
+import za.co.tut.stokvelchain.dto.request.LoanDecisionRequest;
 import za.co.tut.stokvelchain.dto.response.LoanResponse;
 import za.co.tut.stokvelchain.enums.LoanStatus;
 import za.co.tut.stokvelchain.enums.ModelRecommendation;
-import za.co.tut.stokvelchain.exception.GlobalExceptionHandler;
-import za.co.tut.stokvelchain.exception.ResourceNotFoundException;
+import za.co.tut.stokvelchain.exception.*;
 import za.co.tut.stokvelchain.services.LoanService;
 
 import java.math.BigDecimal;
@@ -104,6 +107,103 @@ class LoanControllerIntegrationTest {
                 .andExpect(jsonPath("$", hasSize(2)))
                 .andExpect(jsonPath("$[0].status").value("APPROVED"))
                 .andExpect(jsonPath("$[0].txHash").value("0xabc"));
+    }
+
+    @Test
+    @DisplayName("Not enough contributions: 422 with the rule explained, so the member knows what to do")
+    void ineligibleApplicationReturns422() throws Exception {
+        when(loanService.applyForLoan(eq(groupId), any(LoanApplicationRequest.class)))
+                .thenThrow(new LoanEligibilityException("At least 3 confirmed contributions are required (you have 1)"));
+
+        mvc.perform(post("/api/v1/groups/{groupId}/loans", groupId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\": 1000, \"repaymentMonths\": 6}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.message").value("At least 3 confirmed contributions are required (you have 1)"));
+    }
+
+    @Test
+    @DisplayName("Scoring service down: 503 telling the member nothing was saved and to try again")
+    void scoringServiceDownReturns503() throws Exception {
+        when(loanService.applyForLoan(eq(groupId), any(LoanApplicationRequest.class)))
+                .thenThrow(new CreditScoringException("Connection refused"));
+
+        mvc.perform(post("/api/v1/groups/{groupId}/loans", groupId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\": 1000, \"repaymentMonths\": 6}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.message").value(containsString("try again")));
+    }
+
+    @Test
+    @DisplayName("Override without a reason: 400 with the requirement, so the admin can correct it")
+    void overrideWithoutReasonReturns400() throws Exception {
+        UUID loanId = UUID.randomUUID();
+        when(loanService.decideLoan(eq(groupId), eq(loanId), any(LoanDecisionRequest.class)))
+                .thenThrow(new LoanDecisionException("Overriding the credit model requires a category and a reason of at least 20 characters"));
+
+        mvc.perform(post("/api/v1/groups/{groupId}/loans/{loanId}/decision", groupId, loanId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"approve\": true}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("reason")));
+    }
+
+    @Test
+    @DisplayName("Admin deciding their own loan: 403 with the reason")
+    void selfDecisionReturns403() throws Exception {
+        UUID loanId = UUID.randomUUID();
+        when(loanService.decideLoan(eq(groupId), eq(loanId), any(LoanDecisionRequest.class)))
+                .thenThrow(new AccessDeniedException("You can't decide your own loan application; another group member must review it"));
+
+        mvc.perform(post("/api/v1/groups/{groupId}/loans/{loanId}/decision", groupId, loanId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"approve\": true}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value(containsString("another group member")));
+    }
+
+    @Test
+    @DisplayName("Approved but the blockchain write failed: 503 with retry instructions")
+    void failedDisbursementReturns503() throws Exception {
+        UUID loanId = UUID.randomUUID();
+        when(loanService.retryDisbursement(groupId, loanId))
+                .thenThrow(new BlockchainOperationException("Loan approved but the disbursement could not be recorded on-chain; retry the disbursement",
+                        new RuntimeException("RPC timeout")));
+
+        mvc.perform(post("/api/v1/groups/{groupId}/loans/{loanId}/disbursement/retry", groupId, loanId))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.message").value(containsString("retry")));
+    }
+
+    @Test
+    @DisplayName("Malformed JSON: 400 with a readable message instead of 500")
+    void malformedBodyReturns400() throws Exception {
+        mvc.perform(post("/api/v1/groups/{groupId}/loans", groupId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"amount\": \"lots\", "))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("The request body is missing or not in the expected format"));
+    }
+
+    @Test
+    @DisplayName("Invalid group id in the URL: 400 naming the bad value")
+    void invalidGroupIdReturns400() throws Exception {
+        mvc.perform(get("/api/v1/groups/{groupId}/loans/me", "not-a-uuid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Invalid value for 'groupId'"));
+    }
+
+    @Test
+    @DisplayName("Errors with an explicit status keep it (409 instead of 500)")
+    void responseStatusExceptionKeepsItsStatus() throws Exception {
+        when(loanService.getMyLoans(groupId))
+                .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "You are already a member of this group"));
+
+        mvc.perform(get("/api/v1/groups/{groupId}/loans/me", groupId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("You are already a member of this group"));
     }
 
     @Test
